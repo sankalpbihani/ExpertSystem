@@ -116,6 +116,24 @@ logical_or(_, _, true).
 logical_not(true, false).
 logical_not(false, true).
 
+add_fact(Something is Boolean) :-
+	assertz(fact(Something is Boolean)).
+	
+add_rule(if Condition then Something) :-
+	assertz(rule(if Condition then Something)).
+
+list_facts :-
+	listing(fact).
+
+list_rules :-
+	listing(rule).
+	
+remove_fact(Something is Boolean) :-
+	retract(fact(Something is Boolean)).
+	
+remove_rule(if Condition then Something) :-
+	retract(rule(if Condition then Something)).
+	
 askable(_ has _).
 	
 :- assertz(fact(a is true)).
