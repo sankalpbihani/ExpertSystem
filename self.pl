@@ -8,7 +8,7 @@
 :- op( 600, xfx, from). 
 :- op( 600, xfx, by). 
 %:- op( 700, xfx, is).
-%:- op( 900, fx, not). 
+:- op( 900, fx, not). 
 
 eval(Goal, [N :: (Goal is Answer) was 'found as fact'], Answer, N) :-
 	fact(Goal is Answer).
@@ -29,11 +29,23 @@ eval(Goal1 or Goal2, Trace, Answer, N) :- !,
 	eval(Goal2, Trace2, Answer2, N),
 	logical_or(Answer1, Answer2, Answer),
 	append(Trace1, Trace2, Trace).	
+		
+eval(not Goal, Trace, Answer, N) :- !,
+	eval(Goal, Trace, Answer1, N),
+	logical_not(Answer1, Answer).
+
+show_trace([]).
+show_trace([N :: Line | Remaining]) :-
+	tab(N), write(Line), nl, show_trace(Remaining).
 	
 logical_and(true, true, true) :- !.
 logical_and(_, _, false).
 logical_or(false, false, false) :- !.
-logocal_or(_, _, true).
+logical_or(_, _, true).
+logical_not(true, false).
+logical_not(false, true).
 	
 :- assertz(fact(a is true)).
-:- eval(a, [A :: B | _], _, 4), tab(A), write(B). 
+:- assertz(rule(if a then b is true)).
+:- assertz(rule(if ((not a) or b) then c is true)).
+:- eval(c, Trace, _, 0), show_trace(Trace). 
