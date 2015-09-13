@@ -64,11 +64,14 @@ show_trace([N :: Line | Remaining]) :-
 	
 ask_for_trace(Trace) :-
 	write("Would you like to see how? (yes/no) "),
-	read(X), nl,
+	read(X),
 	ask_for_trace(Trace, X).
 	
 ask_for_trace(Trace, yes) :-
-	show_trace(Trace).
+	nl, show_trace(Trace).
+	
+ask_for_trace(_, X) :-
+	\+ X = yes.	
 	
 check_probability(P) :-
 	(
@@ -79,7 +82,8 @@ check_probability(P) :-
 	P >= 0.
 
 ask_user(Goal, Why) :-
-	write(Goal), write(' is true with certainty : '), read(A), write(A), nl, ask_user(Goal, Why, A).
+	write(Goal), write(' is true with certainty : '), 
+	read(A), ask_user(Goal, Why, A).
 	
 ask_user(Goal, Why, why) :-
 	process_why(Why),
@@ -109,13 +113,33 @@ process_why(Why) :-
 	get_max_len(Why, N),
 	show_why(Why, N).
 	
+ask_for_more(Rep) :-
+	nl, write("Find more solutions/paths? (yes/no) : "), 
+	read(Rep), nl.
+	
 query(Goal) :-
 	eval(Goal, Trace, 0, [], P),
-	nl, write(Goal is true 'with certainty' P), nl,
-	ask_for_trace(Trace);
+	write(Goal is true 'with certainty' P), nl,
+	ask_for_trace(Trace),
+	ask_for_more(Rep),
+	(
+		(
+			Rep = yes,
+			fail
+		);
+		(
+			\+ Rep = yes,
+			true
+		)
+	);
 	\+ eval(Goal, _, 0, [], _),
-	nl, write('No path could be found which can determine certainty of '), write(Goal), nl.
+	nl, write('No solutions can determine (un)certainty of '), write(Goal), nl.
 
+ask_expert(Goal) :-
+	\+ query(Goal),
+	write('No more solutions to determine (un)certainty of '), write(Goal), nl;
+	true.
+	
 add_fact(Something, P) :-
 	assertz(fact(Something, P)).
 	
@@ -138,6 +162,6 @@ askable(_ has _).
 	
 :- assertz(fact(a, 1)).
 :- assertz(rule(if a then b, 1)).
-%:- assertz(rule(if (not (a or b)) then c, 1)).
+:- assertz(rule(if (not (a or b)) then c, 1)).
 :- assertz(rule(if (a has b and b has a) then c, 0.75)).
-:- query(c). 
+:- ask_expert(c). 
