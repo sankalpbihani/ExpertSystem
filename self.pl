@@ -4,9 +4,9 @@
 :- op(880, xfx, then). 
 :- op(550, xfy, or). 
 :- op(540, xfy, and). 
-:- op(300, fx, 'derived by'). 
+:- op(300, xfx, by). 
 :- op(600, xfx, from). 
-:- op(600, xfx, by). 
+:- op(600, xfx, 'with certainty'). 
 :- op(900, fx, not). 
 %:- op(700, xfx, is).
 
@@ -16,76 +16,83 @@
 
 :- op(100, xfx, has).
 
-eval(Goal, [N :: (Goal is Answer) was 'found as fact'], Answer, N, Why) :-
-	fact(Goal is Answer);
+eval(Goal, [N :: Goal is true 'with certainty' P by fact], N, Why, P) :-
+	fact(Goal, P);
 	(
-		\+ fact(Goal is Answer),
+		\+ fact(Goal, _),
 		askable(Goal),
 		ask_user(Goal, [N :: need Goal | Why]),
-		fact(Goal is Answer)
+		fact(Goal, P)
 	);
 	(
-		\+ fact(Goal is Answer),
+		\+ fact(Goal, _),
 		\+ askable(Goal),
-		\+ rule(if _ then Goal is Answer),
+		\+ rule(if _ then Goal, P),
 		\+ Goal = _ and _,
 		\+ Goal = _ or _,
 		\+ Goal = (not _),
-		write('Unable to determine truth value of statement '), write(Goal), write(' which is of non askable type '), nl,
+		write('Unable to determine certainty of statement '), write(Goal), write(' which is of non askable type '), nl,
 		fail
 	).
 	
-eval(Goal, [N :: (Goal is Answer) was 'derived by' (if Cond then Goal is Answer) | T], Answer, N, Why) :-
-	rule(if Cond then Goal is Answer),
+eval(Goal, [N :: (Goal is true 'with certainty' P) by (if Cond then Goal 'with certainty' P1) | T], N, Why, P) :-
+	rule(if Cond then Goal, P1),
 	N4 is N + 4,
-	eval(Cond, T, true, N4, [N :: need Cond ' to determine' Goal 'by rule' (if Cond then Goal is Answer) | Why]).
+	eval(Cond, T, N4, [N :: need Cond ' to determine' Goal 'by rule' (if Cond then Goal) | Why], P2),
+	P is P1 * P2.
 	
-eval(Goal1 and Goal2, Trace, Answer, N, Why) :- 
-	eval(Goal1, Trace1, Answer1, N, Why),
-	eval(Goal2, Trace2, Answer2, N, Why),
-	logical_and(Answer1, Answer2, Answer),
+	
+eval(Goal1 and Goal2, Trace, N, Why, P) :- 
+	eval(Goal1, Trace1, N, Why, P1),
+	eval(Goal2, Trace2, N, Why, P2),
+	P is min(P1, P2),
 	append(Trace1, Trace2, Trace).
 
-eval(Goal1 or Goal2, Trace, Answer, N, Why) :- 
-	eval(Goal1, Trace1, Answer1, N, Why),
-	eval(Goal2, Trace2, Answer2, N, Why),
-	logical_or(Answer1, Answer2, Answer),
+eval(Goal1 or Goal2, Trace, N, Why, P) :- 
+	eval(Goal1, Trace1, N, Why, P1),
+	eval(Goal2, Trace2, N, Why, P2),
+	P is max(P1, P2),
 	append(Trace1, Trace2, Trace).	
 		
-eval(not Goal1, Trace, Answer, N, Why) :- 
-	eval(Goal1, Trace, Answer1, N, Why),
-	logical_not(Answer1, Answer).
+eval(not Goal1, Trace, N, Why, P) :- 
+	eval(Goal1, Trace, N, Why, P1),
+	P is 1 - P1.
 
 show_trace([]).
 show_trace([N :: Line | Remaining]) :-
 	tab(N), write(Line), nl, show_trace(Remaining).
 	
 ask_for_trace(Trace) :-
-	write("Would you like to see how? (y/n) "),
-	get_single_char(X), char_code(A, X), nl,
-	ask_for_trace(Trace, A).
+	write("Would you like to see how? (yes/no) "),
+	read(X), nl,
+	ask_for_trace(Trace, X).
 	
-ask_for_trace(Trace, y) :-
+ask_for_trace(Trace, yes) :-
 	show_trace(Trace).
 	
+check_probability(P) :-
+	(
+		float(P);
+		integer(P)
+	),
+	P =< 1,
+	P >= 0.
+
 ask_user(Goal, Why) :-
-	write(Goal), write(' (y/n/w) : '), get_single_char(X), char_code(A, X), nl, ask_user(Goal, Why, A).
+	write(Goal), write(' is true with certainty : '), read(A), write(A), nl, ask_user(Goal, Why, A).
 	
-ask_user(Goal, _, y) :-
-	assertz(fact(Goal is true)).
-	
-ask_user(Goal, _, n) :-
-	assertz(fact(Goal is false)).
-	
-ask_user(Goal, Why, w) :-
+ask_user(Goal, Why, why) :-
 	process_why(Why),
 	ask_user(Goal, Why).
 	
+ask_user(Goal, _, P) :-
+	check_probability(P),
+	assertz(fact(Goal, P)).
+	
 ask_user(Goal, Trace, X) :-
-	\+ X = y,
-	\+ X = n,
-	\+ X = w,
-	write('Invalid input, please enter y=yes(true), n=no(false), w=why'), nl,
+	\+ X = why,
+	\+ check_probability(X),
+	write('Invalid input, please enter certainty, or ask why'), nl,
 	ask_user(Goal, Trace).
 	
 get_max_len([], 0).
@@ -103,24 +110,17 @@ process_why(Why) :-
 	show_why(Why, N).
 	
 query(Goal) :-
-	eval(Goal, Trace, Answer, 0, []),
-	nl, write(Goal is Answer), nl,
+	eval(Goal, Trace, 0, [], P),
+	nl, write(Goal is true 'with certainty' P), nl,
 	ask_for_trace(Trace);
-	\+ eval(Goal, _, _, 0, []),
-	nl, write('No path could be found which can determine truth value of '), write(Goal), nl.
-	
-logical_and(true, true, true) :- !.
-logical_and(_, _, false).
-logical_or(false, false, false) :- !.
-logical_or(_, _, true).
-logical_not(true, false).
-logical_not(false, true).
+	\+ eval(Goal, _, 0, [], _),
+	nl, write('No path could be found which can determine certainty of '), write(Goal), nl.
 
-add_fact(Something is Boolean) :-
-	assertz(fact(Something is Boolean)).
+add_fact(Something, P) :-
+	assertz(fact(Something, P)).
 	
-add_rule(if Condition then Something) :-
-	assertz(rule(if Condition then Something)).
+add_rule(if Condition then Something, P) :-
+	assertz(rule(if Condition then Something, P)).
 
 list_facts :-
 	listing(fact).
@@ -128,16 +128,16 @@ list_facts :-
 list_rules :-
 	listing(rule).
 	
-remove_fact(Something is Boolean) :-
-	retract(fact(Something is Boolean)).
+remove_fact(Something) :-
+	retract(fact(Something, _)).
 	
 remove_rule(if Condition then Something) :-
-	retract(rule(if Condition then Something)).
+	retract(rule(if Condition then Something, _)).
 	
 askable(_ has _).
 	
-:- assertz(fact(a is true)).
-:- assertz(rule(if a then b is true)).
-:- assertz(rule(if (not (a or b)) then c is true)).
-:- assertz(rule(if (a has b and b has a) then c is true)).
+:- assertz(fact(a, 1)).
+:- assertz(rule(if a then b, 1)).
+%:- assertz(rule(if (not (a or b)) then c, 1)).
+:- assertz(rule(if (a has b and b has a) then c, 0.75)).
 :- query(c). 
