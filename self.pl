@@ -40,7 +40,7 @@ eval(Goal, [N :: Goal is true 'with certainty' P by fact], N, Why, P) :-
 eval(Goal, [N :: (Goal is true 'with certainty' P) by (if Cond then Goal 'with certainty' P1) | T], N, Why, P) :-
 	rule(if Cond then Goal, P1),
 	N4 is N + 4,
-	check_loop(Why, Goal),
+	check_loop(Why, Goal, Cond),
 	eval(Cond, T, N4, [N :: need Cond ' to determine' Goal 'by rule' (if Cond then Goal) | Why], P2),
 	P is P1 * P2.
 	
@@ -130,12 +130,28 @@ ask_for_more(Rep) :-
 	read(Rep), nl.
 	
 % check loop conditions
-check_loop([], _).
-check_loop([_ :: need _ ' to determine' Goal1 'by rule' (if Cond1 then Goal1) | Why], Goal) :-
-	\+ Goal = Goal1,
-	check_loop(Why, Goal);
-	Goal = Goal1,
-	write("Loop detected due to rule : "), write(if Cond1 then Goal1), nl, fail.
+check_loop([], _, _).
+check_loop([_ :: need _ ' to determine' Goal1 'by rule' (if Cond1 then Goal1) | Why], Goal, Cond) :-
+	(
+		(
+			\+ Goal = Goal1;
+			\+ Cond = Cond1
+		),
+		check_loop(Why, Goal, Cond)
+	);
+	(
+		Goal = Goal1,
+		Cond = Cond1,
+		(
+			\+ loop(Cond1, Goal1),
+			assertz(loop(Cond1, Goal1)),
+			write("Loop detected due to rule : "), write(if Cond1 then Goal1), nl, fail
+		);
+		(
+			loop(Cond1, Goal1),
+			fail
+		)
+	).
 	
 % run a query
 query(Goal) :-
@@ -158,6 +174,7 @@ query(Goal) :-
 
 % run query, check if no possible solution
 ask_expert(Goal) :-
+	retractall(loop(_, _)),
 	\+ query(Goal),
 	write('No more solutions to determine (un)certainty of '), write(Goal), nl;
 	true.
@@ -244,7 +261,7 @@ shell :-
 
 % askable questions/queries
 askable(_ has _).
-askable(a).
+% askable(a).
 	
 :- assertz(fact(dummy, 0)).
 :- assertz(rule(if dummy1 then dummy2, 0)).
