@@ -188,7 +188,7 @@ remove_fact(Fact) :-
 remove_rule(if Condition then Consequence) :-
 	retractall(rule(if Condition then Consequence, _)).
 
-% helper fucntions for shell
+% helper functions for shell
 command('list facts') :-
 	list_facts.
 	
@@ -214,12 +214,14 @@ command('add rule') :-
 command('remove fact') :-
 	write("Input fact"), nl,
 	read(F),
-	remove_fact(F).
+	remove_fact(F),
+	write("Fact removed successfully"), nl.
 	
 command('remove rule') :-
 	write("Input rule"), nl,
 	read(R),
-	remove_rule(R).
+	remove_rule(R),
+	write("Rule removed successfully"), nl.
 	
 command('ask expert') :-
 	write("Input query"), nl,
@@ -231,6 +233,7 @@ command(exit) :-
 	
 % shell for user
 shell :-
+	write("Wating for input"), nl, 
 	read_string(user_input, ".", " \n", _, X),
 	atom_string(A, X),
 	command(A),
@@ -241,6 +244,7 @@ shell :-
 
 % askable questions/queries
 askable(_ has _).
+askable(a).
 	
 :- assertz(fact(dummy, 0)).
 :- assertz(rule(if dummy1 then dummy2, 0)).
