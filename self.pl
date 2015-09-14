@@ -14,8 +14,9 @@
 :- op(450, xfx, ' to determine').
 :- op(400, xfx, 'by rule').
 
-:- op(100, xfx, has).
+:- op(100, xfx, [has, hass]).
 
+% evaluate probability for fact
 eval(Goal, [N :: Goal is true 'with certainty' P by fact], N, Why, P) :-
 	fact(Goal, P);
 	(
@@ -35,33 +36,38 @@ eval(Goal, [N :: Goal is true 'with certainty' P by fact], N, Why, P) :-
 		fail
 	).
 	
+% evaluate probability for rule
 eval(Goal, [N :: (Goal is true 'with certainty' P) by (if Cond then Goal 'with certainty' P1) | T], N, Why, P) :-
 	rule(if Cond then Goal, P1),
 	N4 is N + 4,
 	eval(Cond, T, N4, [N :: need Cond ' to determine' Goal 'by rule' (if Cond then Goal) | Why], P2),
 	P is P1 * P2.
 	
-	
+% evaluate probability for and operator
 eval(Goal1 and Goal2, Trace, N, Why, P) :- 
 	eval(Goal1, Trace1, N, Why, P1),
 	eval(Goal2, Trace2, N, Why, P2),
 	P is min(P1, P2),
 	append(Trace1, Trace2, Trace).
 
+% evaluate probability for or operator
 eval(Goal1 or Goal2, Trace, N, Why, P) :- 
 	eval(Goal1, Trace1, N, Why, P1),
 	eval(Goal2, Trace2, N, Why, P2),
 	P is max(P1, P2),
 	append(Trace1, Trace2, Trace).	
 		
+% evaluate probability for not operator
 eval(not Goal1, Trace, N, Why, P) :- 
 	eval(Goal1, Trace, N, Why, P1),
 	P is 1 - P1.
 
+% show trace for how questions
 show_trace([]).
 show_trace([N :: Line | Remaining]) :-
 	tab(N), write(Line), nl, show_trace(Remaining).
 	
+% ask whether trace is to be shown
 ask_for_trace(Trace) :-
 	write("Would you like to see how? (yes/no) "),
 	read(X),
@@ -73,6 +79,7 @@ ask_for_trace(Trace, yes) :-
 ask_for_trace(_, X) :-
 	\+ X = yes.	
 	
+% check validity of entered probability
 check_probability(P) :-
 	(
 		float(P);
@@ -81,6 +88,7 @@ check_probability(P) :-
 	P =< 1,
 	P >= 0.
 
+% ask user for unknown askable facts
 ask_user(Goal, Why) :-
 	write(Goal), write(' is true with certainty : '), 
 	read(A), ask_user(Goal, Why, A).
@@ -99,11 +107,13 @@ ask_user(Goal, Trace, X) :-
 	write('Invalid input, please enter certainty, or ask why'), nl,
 	ask_user(Goal, Trace).
 	
+% get length for formatting why questions
 get_max_len([], 0).
 get_max_len([N1 :: _ | Why], N) :-
 	get_max_len(Why, N2),
 	N is max(N1, N2).
 
+% show result of why query
 show_why([], _).
 show_why([N1 :: Line| Remaining], N) :-
 	N2 is N - N1,
@@ -113,10 +123,12 @@ process_why(Why) :-
 	get_max_len(Why, N),
 	show_why(Why, N).
 	
+% ask for more possible solutions
 ask_for_more(Rep) :-
-	nl, write("Find more solutions/paths? (yes/no) : "), 
+	write("Find more solutions/paths? (yes/no) : "), 
 	read(Rep), nl.
 	
+% run a query
 query(Goal) :-
 	eval(Goal, Trace, 0, [], P),
 	write(Goal is true 'with certainty' P), nl,
@@ -135,33 +147,95 @@ query(Goal) :-
 	\+ eval(Goal, _, 0, [], _),
 	nl, write('No solutions can determine (un)certainty of '), write(Goal), nl.
 
+% run query, check if no possible solution
 ask_expert(Goal) :-
 	\+ query(Goal),
 	write('No more solutions to determine (un)certainty of '), write(Goal), nl;
 	true.
 	
-add_fact(Something, P) :-
-	assertz(fact(Something, P)).
+% add fact
+add_fact(Fact, P) :-
+	check_probability(P),
+	assertz(fact(Fact, P)).
 	
-add_rule(if Condition then Something, P) :-
-	assertz(rule(if Condition then Something, P)).
+% add rule
+add_rule(if Condition then Consequence, P) :-
+	check_probability(P),
+	assertz(rule(if Condition then Consequence, P)).
 
+% list all facts
 list_facts :-
 	listing(fact).
 
+% list all rules
 list_rules :-
 	listing(rule).
 	
-remove_fact(Something) :-
-	retract(fact(Something, _)).
+% remove a fact
+remove_fact(Fact) :-
+	retract(fact(Fact, _)).
 	
-remove_rule(if Condition then Something) :-
-	retract(rule(if Condition then Something, _)).
+% remove a rule
+remove_rule(if Condition then Consequence) :-
+	retract(rule(if Condition then Consequence, _)).
 	
+% askable questions/queries
 askable(_ has _).
+
+% helper fucntions for shell
+command('list facts') :-
+	list_facts.
+	
+command('list rules') :-
+	list_rules.
+	
+command('add fact') :-
+	write("Input fact"), nl,
+	read(F),
+	write("Input Certainty of the entered fact"), nl,
+	read(P),
+	add_fact(F, P),
+	write("Fact added successfully"), nl.	
+	
+command('add rule') :-
+	write("Input rule condition"), nl,
+	read(R),
+	write("Input Certainty of the entered rule"), nl,
+	read(P),
+	add_rule(R, P),
+	write("Rule added successfully"), nl.
+	
+command('remove fact') :-
+	write("Input fact"), nl,
+	read(F),
+	remove_fact(F).
+	
+command('remove rule') :-
+	write("Input rule"), nl,
+	read(R),
+	remove_rule(R).
+	
+command('ask expert') :-
+	write("Input query"), nl,
+	read(X),
+	ask_expert(X).
+	
+command(exit) :-
+	abort.
+	
+% shell for user
+shell :-
+	read_string(user_input, ".", " \n", _, X),
+	atom_string(A, X),
+	command(A),
+	shell;
+	true,
+	write("Invalid input"), nl,
+	shell.
 	
 :- assertz(fact(a, 1)).
 :- assertz(rule(if a then b, 1)).
 :- assertz(rule(if (not (a or b)) then c, 1)).
 :- assertz(rule(if (a has b and b has a) then c, 0.75)).
-:- ask_expert(c). 
+%:- ask_expert(c).
+%:- shell.
