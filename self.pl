@@ -40,6 +40,7 @@ eval(Goal, [N :: Goal is true 'with certainty' P by fact], N, Why, P) :-
 eval(Goal, [N :: (Goal is true 'with certainty' P) by (if Cond then Goal 'with certainty' P1) | T], N, Why, P) :-
 	rule(if Cond then Goal, P1),
 	N4 is N + 4,
+	check_loop(Why, Goal),
 	eval(Cond, T, N4, [N :: need Cond ' to determine' Goal 'by rule' (if Cond then Goal) | Why], P2),
 	P is P1 * P2.
 	
@@ -128,6 +129,14 @@ ask_for_more(Rep) :-
 	write("Find more solutions/paths? (yes/no) : "), 
 	read(Rep), nl.
 	
+% check loop conditions
+check_loop([], _).
+check_loop([_ :: need _ ' to determine' Goal1 'by rule' (if Cond1 then Goal1) | Why], Goal) :-
+	\+ Goal = Goal1,
+	check_loop(Why, Goal);
+	Goal = Goal1,
+	write("Loop detected due to rule : "), write(if Cond1 then Goal1), nl, fail.
+	
 % run a query
 query(Goal) :-
 	eval(Goal, Trace, 0, [], P),
@@ -173,14 +182,11 @@ list_rules :-
 	
 % remove a fact
 remove_fact(Fact) :-
-	retract(fact(Fact, _)).
+	retractall(fact(Fact, _)).
 	
 % remove a rule
 remove_rule(if Condition then Consequence) :-
-	retract(rule(if Condition then Consequence, _)).
-	
-% askable questions/queries
-askable(_ has _).
+	retractall(rule(if Condition then Consequence, _)).
 
 % helper fucntions for shell
 command('list facts') :-
@@ -198,7 +204,7 @@ command('add fact') :-
 	write("Fact added successfully"), nl.	
 	
 command('add rule') :-
-	write("Input rule condition"), nl,
+	write("Input rule"), nl,
 	read(R),
 	write("Input Certainty of the entered rule"), nl,
 	read(P),
@@ -232,9 +238,15 @@ shell :-
 	true,
 	write("Invalid input"), nl,
 	shell.
+
+% askable questions/queries
+askable(_ has _).
 	
-:- assertz(fact(a, 1)).
+:- assertz(fact(dummy, 0)).
+:- assertz(rule(if dummy1 then dummy2, 0)).
+%:- assertz(fact(a, 1)).
 :- assertz(rule(if a then b, 1)).
+:- assertz(rule(if b then a, 1)).
 :- assertz(rule(if (not (a or b)) then c, 1)).
 :- assertz(rule(if (a has b and b has a) then c, 0.75)).
 %:- ask_expert(c).
